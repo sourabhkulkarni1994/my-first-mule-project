@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties" xmlns:api-gateway="http://www.mulesoft.org/schema/mule/api-gateway"
+	xmlns:spring="http://www.mulesoft.org/schema/mule/spring"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/spring http://www.mulesoft.org/schema/mule/spring/current/mule-spring.xsd
+http://www.mulesoft.org/schema/mule/api-gateway http://www.mulesoft.org/schema/mule/api-gateway/current/mule-api-gateway.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd">
+<spring:config name="springConfig" files="beans.xml" />
+ <spring:security-manager>
+    <spring:delegate-security-provider
+      name="memory-provider"
+      delegate-ref="authenticationManager" />
+  </spring:security-manager>
+
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="d2738047-cd78-4cce-86ba-dc9373e3164c" >
+		<http:listener-connection host="0.0.0.0" port="8888" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="bb2b874d-2ced-4f31-98ca-3c5ebc32febe" >
+		<db:my-sql-connection host="mudb.learn.mulesoft.com" port="3306" user="mule" password="mule" database="training" />
+	</db:config>
+	<configuration-properties doc:name="Configuration properties" doc:id="9e0d7271-19ca-45a0-91e7-8c70cb4fd91e" file="config.properties" />
+	<secure-properties:config name="Secure_Properties_Config" doc:name="Secure Properties Config" doc:id="bd1be5a6-5e8e-4c24-a968-c72af2c1a1be" file="dev.yaml" key="mymulesoftalgo" >
+		<secure-properties:encrypt algorithm="Blowfish" />
+	</secure-properties:config>
+	<flow name="test_1Flow" doc:id="34be584c-8c6e-4e9a-8aba-1766145c9b5d" >
+		<http:listener doc:name="Listener" doc:id="0ccd1c73-d1ce-4f55-aa8a-246a75c2db13" config-ref="HTTP_Listener_config" path="/test"/>
+		<http:basic-security-filter doc:name="Basic security filter" doc:id="cbdf8bca-142c-4312-a60b-0c25d30222d5" realm="mule"/>
+		<spring:authorization-filter doc:name="Authorization filter" doc:id="b9296685-86cb-4425-abcc-51bc663a0cb8" requiredAuthorities="ROLE_ADMIN"/>
+		<set-variable value="#[attributes.queryParams.price]" doc:name="Set Variable" doc:id="1b0e3c71-85aa-4cf2-b775-6a2dc742e55e" variableName="pricevar"/>
+		<db:select doc:name="Select" doc:id="2eac77e1-0217-4439-91ee-1011600a15dd" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT *
+FROM ${tablename} WHERE price = :price]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	price : vars.pricevar
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="594d599b-c576-4128-b9b7-c906eb70386f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler>
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="e6fe49ba-6ce8-4b0e-bdf0-6a0742a155b0" type="ANY">
+			    <ee:transform doc:name="Transform Message" doc:id="fe7344b7-aec5-4135-80a8-8cba8d2395a8" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status":"Error"
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="e32dc79b-0020-492f-91ac-465e413b6d83" message="App Failed"/>
+			</on-error-continue>
+		</error-handler>
+	</flow>
+</mule>
